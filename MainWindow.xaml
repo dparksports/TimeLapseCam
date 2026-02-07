@@ -11,6 +11,7 @@
 
     <NavigationView x:Name="NavView"
                     PaneDisplayMode="Left"
+                    OpenPaneLength="140"
                     SelectionChanged="NavView_SelectionChanged"
                     IsSettingsVisible="True">
         <NavigationView.MenuItems>
