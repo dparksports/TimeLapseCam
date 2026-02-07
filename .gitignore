@@ -11,3 +11,6 @@ obj/
 debug.log
 
 .venv/
+
+# Archives
+*.zip

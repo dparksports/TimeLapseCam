@@ -14,12 +14,16 @@ namespace TimeLapseCam
             m_window = new MainWindow();
             m_window.Activate();
 
-            // Initialize Analytics
-            var analytics = new Services.FirebaseAnalyticsService();
-            _ = analytics.LogEventAsync("app_launch");
+            // Execute post-launch logic after window is visible
+            m_window.DispatcherQueue.TryEnqueue(async () =>
+            {
+                // Initialize Analytics
+                var analytics = new Services.FirebaseAnalyticsService();
+                _ = analytics.LogEventAsync("app_launch");
 
-            // Check EULA
-            await CheckEulaAsync();
+                // Check EULA
+                await CheckEulaAsync();
+            });
         }
 
         private async System.Threading.Tasks.Task CheckEulaAsync()
