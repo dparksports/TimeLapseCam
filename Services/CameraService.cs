@@ -19,6 +19,7 @@ namespace TimeLapseCam.Services
         private MediaCapture? _mediaCapture;
         private MediaFrameReader? _frameReader;
         private bool _isInitialized;
+        public string? CurrentCameraId { get; private set; }
 
         public event EventHandler<SoftwareBitmap>? FrameArrived;
 
@@ -47,6 +48,11 @@ namespace TimeLapseCam.Services
             if (cameraDevice != null)
             {
                 settings.VideoDeviceId = cameraDevice.Id;
+                CurrentCameraId = cameraDevice.Id;
+            }
+            else
+            {
+                CurrentCameraId = null;
             }
 
             try

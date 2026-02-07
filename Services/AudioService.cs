@@ -27,21 +27,33 @@ namespace TimeLapseCam.Services
         {
             if (_isRecording) StopRecording();
 
-            var enumerator = new MMDeviceEnumerator();
-            var device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
-                                   .FirstOrDefault(d => d.FriendlyName == deviceName);
-
-            if (device == null)
-            {
-                // Fallback to default if not found or null
-                 device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
-            }
-
             try 
             {
+                var enumerator = new MMDeviceEnumerator();
+                MMDevice? device = null;
+                
+                if (!string.IsNullOrEmpty(deviceName))
+                {
+                    device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                                       .FirstOrDefault(d => d.FriendlyName == deviceName);
+                }
+
+                if (device == null)
+                {
+                    // Fallback to default
+                     device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
+                }
+
                 _capture = new WasapiCapture(device);
                 _capture.DataAvailable += OnDataAvailable;
                 _capture.RecordingStopped += OnRecordingStopped;
+
+                // Ensure directory exists
+                string? dir = System.IO.Path.GetDirectoryName(outputFilePath);
+                if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir)) 
+                {
+                    System.IO.Directory.CreateDirectory(dir);
+                }
 
                 _outputFilePath = outputFilePath;
                 _writer = new WaveFileWriter(outputFilePath, _capture.WaveFormat);

@@ -13,25 +13,34 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="320" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Camera Preview -->
-        <MediaPlayerElement x:Name="CameraPreview" 
-                            Grid.Column="0" Grid.Row="0"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                            AutoPlay="True" />
-        
-        <!-- Overlay Detection Info (Optional) -->
-        <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                   Grid.Column="0" Grid.Row="0"
-                   VerticalAlignment="Top" HorizontalAlignment="Left"
-                   Margin="10" Foreground="Lime" FontSize="14"
-                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+        <!-- Camera Preview & Selector -->
+        <Grid Grid.Column="0" Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <ComboBox ItemsSource="{x:Bind ViewModel.Cameras, Mode=OneWay}"
+                      SelectedItem="{x:Bind ViewModel.SelectedCamera, Mode=TwoWay}"
+                      DisplayMemberPath="Name"
+                      HorizontalAlignment="Stretch" Margin="10"/>
+
+            <Grid Grid.Row="1" Margin="10" Background="Black" CornerRadius="4" BorderBrush="Gray" BorderThickness="1">
+                <Image Source="{x:Bind ViewModel.PreviewSource, Mode=OneWay}" Stretch="Uniform" />
+                
+                <!-- Overlay Info -->
+                <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="10">
+                    <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" Foreground="Lime" FontSize="14"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
 
         <!-- Side Panel: Event Log -->
         <Grid Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" 

@@ -20,7 +20,11 @@ namespace TimeLapseCam
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
-            if (args.SelectedItemContainer is NavigationViewItem selectedItem && selectedItem.Tag is string tag)
+            if (args.IsSettingsSelected)
+            {
+                ContentFrame.Navigate(typeof(SettingsPage));
+            }
+            else if (args.SelectedItemContainer is NavigationViewItem selectedItem && selectedItem.Tag is string tag)
             {
                 switch (tag)
                 {
@@ -28,8 +32,6 @@ namespace TimeLapseCam
                         ContentFrame.Navigate(typeof(CapturePage));
                         break;
                     case "ReviewPage":
-                        // Ensure we clean up capture if needed, or keep it running?
-                        // For now just navigate.
                         ContentFrame.Navigate(typeof(ReviewPage));
                         break;
                 }

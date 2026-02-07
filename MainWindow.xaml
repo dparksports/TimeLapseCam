@@ -12,7 +12,7 @@
     <NavigationView x:Name="NavView"
                     PaneDisplayMode="Left"
                     SelectionChanged="NavView_SelectionChanged"
-                    IsSettingsVisible="False">
+                    IsSettingsVisible="True">
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Capture" Tag="CapturePage" Icon="Video"/>
             <NavigationViewItem Content="Review" Tag="ReviewPage" Icon="OutlineStar"/>

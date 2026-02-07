@@ -12,6 +12,7 @@ using Windows.Media.Core;
 using Windows.Storage;
 using System.Runtime.InteropServices.WindowsRuntime;
 using OpenCvSharp;
+using Windows.Devices.Enumeration;
 
 // Actually, likely need manual conversion or a helper.
 // OpenCvSharp.Extensions usually supports System.Drawing.Bitmap.
@@ -59,6 +60,20 @@ namespace TimeLapseCam.ViewModels
         }
 
         [ObservableProperty]
+        private ObservableCollection<DeviceInformation> _cameras = new();
+
+        [ObservableProperty]
+        private DeviceInformation? _selectedCamera;
+
+        async partial void OnSelectedCameraChanged(DeviceInformation? value)
+        {
+            if (value != null && IsInitialized && value.Id != _cameraService.CurrentCameraId)
+            {
+                await InitializeCameraAsync(value);
+            }
+        }
+
+        [ObservableProperty]
         private Microsoft.UI.Xaml.Media.ImageSource? _previewSource;
 
         private Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
@@ -69,9 +84,16 @@ namespace TimeLapseCam.ViewModels
             StatusMessage = "Initializing...";
             try
             {
-                await _cameraService.InitializeAsync();
-                await _cameraService.StartPreviewAsync();
-                
+                // Load Cameras
+                var devices = await _cameraService.GetAvailableCamerasAsync();
+                Cameras.Clear();
+                foreach (var device in devices) Cameras.Add(device);
+
+                var defaultCamera = devices.FirstOrDefault();
+                SelectedCamera = defaultCamera; // This will trigger OnSelectedCameraChanged if we were already initialized, but we aren't yet.
+
+                await InitializeCameraAsync(defaultCamera);
+
                 // Load Model
                 string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
                 if (File.Exists(modelPath))
@@ -88,6 +110,21 @@ namespace TimeLapseCam.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Error: {ex.Message}";
+            }
+        }
+
+        private async Task InitializeCameraAsync(DeviceInformation? camera)
+        {
+            StatusMessage = "Switching Camera...";
+            try
+            {
+                await _cameraService.InitializeAsync(camera);
+                await _cameraService.StartPreviewAsync();
+                StatusMessage = "Ready";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Camera Error: {ex.Message}";
             }
         }
 
@@ -208,10 +245,11 @@ namespace TimeLapseCam.ViewModels
                 var resultFile = await folder.CreateFileAsync(Path.GetFileName(destination), CreationCollisionOption.ReplaceExisting);
                 
                 await composition.RenderToFileAsync(resultFile);
+                Debug.WriteLine($"[Merge] Composition rendered to {resultFile.Path}");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Merge Error: {ex.Message}");
+                Debug.WriteLine($"Merge Error: {ex}");
                 // Fallback: Just move video file if merge fails
                 File.Copy(videoPath, destination, true);
                 StatusMessage = "Merge Failed. Video saved without audio.";

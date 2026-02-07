@@ -1,0 +1,18 @@
+END USER LICENSE AGREEMENT
+
+IMPORTANT: PLEASE READ THIS LICENSE CAREFULLY BEFORE USING THIS SOFTWARE.
+
+1. LICENSE GRANT
+By validly acquiring the software, you are granted a limited non-exclusive license to use the software on your devices.
+
+2. RESTRICTIONS
+You may not decompile, reverse engineer, disassemble, or otherwise attempt to derive this software's source code, except to the extent expressly permitted by applicable law.
+
+3. DATA & PRIVACY
+This application may collect anonymous usage data to improve the user experience. You can opt-out of this collection in the application settings (if available) or by editing the configuration files.
+
+4. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE AUTHORS OR COPYRIGHT HOLDERS SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.
+
+5. TERMINATION
+This license is effective until terminated. Your rights under this license will terminate automatically without notice if you fail to comply with any term(s) of this license.
