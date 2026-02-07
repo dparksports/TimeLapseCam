@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.log
+*.json
+!appsettings.json
+!manifest.json
+debug.log
