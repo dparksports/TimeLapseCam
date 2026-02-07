@@ -84,7 +84,6 @@ namespace TimeLapseCam.ViewModels
             StatusMessage = "Loading cameras...";
             try
             {
-                // Phase 1: Enumerate cameras (fast)
                 var devices = await _cameraService.GetAvailableCamerasAsync();
                 Cameras.Clear();
                 foreach (var device in devices) Cameras.Add(device);
@@ -92,30 +91,24 @@ namespace TimeLapseCam.ViewModels
                 var defaultCamera = devices.FirstOrDefault();
                 SelectedCamera = defaultCamera;
 
-                // Phase 2: Initialize camera (may take a moment)
                 StatusMessage = "Starting camera...";
                 await InitializeCameraAsync(defaultCamera);
                 IsInitialized = true;
                 StatusMessage = "Ready";
-
-                // Phase 3: Load AI model in background (non-blocking)
-                _ = Task.Run(async () =>
-                {
-                    string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
-                    if (File.Exists(modelPath))
-                    {
-                        await _detectionService.InitializeAsync(modelPath);
-                        _dispatcherQueue.TryEnqueue(() => StatusMessage = "Ready (AI Loaded)");
-                    }
-                    else
-                    {
-                        _dispatcherQueue.TryEnqueue(() => StatusMessage = "Ready (AI Model Missing)");
-                    }
-                });
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Error: {ex.Message}";
+            }
+        }
+
+        private async Task EnsureModelLoadedAsync()
+        {
+            if (_detectionService.IsInitialized) return;
+            string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
+            if (File.Exists(modelPath))
+            {
+                await _detectionService.InitializeAsync(modelPath);
             }
         }
 
@@ -135,7 +128,7 @@ namespace TimeLapseCam.ViewModels
         }
 
         [RelayCommand]
-        private void ToggleRecording()
+        private async Task ToggleRecording()
         {
             if (IsRecording)
             {
@@ -143,14 +136,17 @@ namespace TimeLapseCam.ViewModels
             }
             else
             {
-                StartRecording();
+                await StartRecordingAsync();
             }
         }
 
-        private void StartRecording()
+        private async Task StartRecordingAsync()
         {
             try
             {
+                // Load AI model on first recording (lazy init)
+                _ = EnsureModelLoadedAsync();
+                
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                 string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string folder = Path.Combine(documents, "TimeLapseCam");
