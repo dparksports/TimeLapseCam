@@ -24,6 +24,7 @@ namespace TimeLapseCam.ViewModels
     {
         private readonly CameraService _cameraService;
         private readonly AudioService _audioService;
+        private readonly ObjectDetectionService _detectionService;
         private readonly EventLogService _eventLogService;
 
         [ObservableProperty]
@@ -46,11 +47,19 @@ namespace TimeLapseCam.ViewModels
         private int _frameWidth;
         private int _frameHeight;
 
+        // Smart upload state
+        private int _personFrameCounter = 0;
+        private const int PersonUploadFrameLimit = 100;
+        private DateTime _lastHourlySnapshot = DateTime.MinValue;
+        private DateTime _lastDetectionTime = DateTime.MinValue;
+        private bool _modelLoaded = false;
+
 
         public MainViewModel()
         {
             _cameraService = new CameraService();
             _audioService = new AudioService();
+            _detectionService = new ObjectDetectionService();
             _eventLogService = new EventLogService();
 
             _cameraService.FrameArrived += OnFrameArrived;
@@ -151,10 +160,15 @@ namespace TimeLapseCam.ViewModels
                 _videoWriter = null; 
 
                 _recordingStartTime = DateTime.Now;
+                _personFrameCounter = 0;
+                _lastHourlySnapshot = DateTime.Now; // Start hourly timer from now
                 IsRecording = true;
                 RecordButtonText = "Stop Recording";
                 StatusMessage = "Recording...";
                 _eventLogService.LogEvent("System", "Recording Started", TimeSpan.Zero);
+
+                // Load detection model in background (non-blocking)
+                _ = EnsureDetectionModelAsync();
             }
             catch (Exception ex)
             {
@@ -353,6 +367,9 @@ namespace TimeLapseCam.ViewModels
                 {
                     WriteFrame(bitmap);
                     _lastFrameWriteTime = DateTime.Now;
+
+                    // Smart detection + upload (runs at 1fps alongside frame writes)
+                    _ = Task.Run(() => SmartDetectAndUpload(bitmap));
                 }
             }
 
@@ -381,6 +398,94 @@ namespace TimeLapseCam.ViewModels
         }
 
         private DateTime _lastFrameWriteTime;
+
+        private async Task EnsureDetectionModelAsync()
+        {
+            if (_modelLoaded) return;
+            string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
+            if (File.Exists(modelPath))
+            {
+                await _detectionService.InitializeAsync(modelPath);
+                _modelLoaded = true;
+            }
+        }
+
+        private unsafe void SmartDetectAndUpload(SoftwareBitmap bitmap)
+        {
+            try
+            {
+                if (!_modelLoaded || !IsRecording) return;
+
+                using var mat = SoftwareBitmapToMat(bitmap);
+                if (mat == null) return;
+
+                var results = _detectionService.Detect(mat);
+                bool personDetected = false;
+
+                foreach (var result in results)
+                {
+                    if (result.Label == "person" && result.Confidence > 0.4f)
+                    {
+                        personDetected = true;
+                        break;
+                    }
+                }
+
+                if (personDetected)
+                {
+                    // Person detected — upload this frame immediately
+                    if (_personFrameCounter < PersonUploadFrameLimit)
+                    {
+                        _personFrameCounter++;
+                        string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+                        UploadFrameToGoogleDrive(mat, $"ALERT_{timestamp}.jpg");
+                        
+                        if (_personFrameCounter == 1)
+                        {
+                            _eventLogService.LogEvent("Security", "Person detected — uploading frames", DateTime.Now - _recordingStartTime);
+                            Debug.WriteLine("[Security] PERSON DETECTED — starting frame upload");
+                        }
+                    }
+                }
+                else
+                {
+                    // No person — reset counter, do hourly snapshot
+                    _personFrameCounter = 0;
+
+                    if ((DateTime.Now - _lastHourlySnapshot).TotalHours >= 1.0)
+                    {
+                        string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                        UploadFrameToGoogleDrive(mat, $"Snapshot_{timestamp}.jpg");
+                        _lastHourlySnapshot = DateTime.Now;
+                        Debug.WriteLine("[Security] Hourly snapshot uploaded");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Security] Detection error: {ex.Message}");
+            }
+        }
+
+        private void UploadFrameToGoogleDrive(Mat frame, string fileName)
+        {
+            try
+            {
+                string? drivePath = FindGoogleDriveFolder();
+                if (drivePath == null) return;
+
+                string alertFolder = Path.Combine(drivePath, "TimeLapseCam", "Alerts");
+                if (!Directory.Exists(alertFolder)) Directory.CreateDirectory(alertFolder);
+
+                string destPath = Path.Combine(alertFolder, fileName);
+                Cv2.ImWrite(destPath, frame);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Security] Upload frame error: {ex.Message}");
+            }
+        }
+
 
         private void InitializeWriterIfNeeded()
         {
