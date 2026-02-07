@@ -69,16 +69,22 @@
 
         <!-- Bottom Controls -->
         <StackPanel Grid.Column="0" Grid.Row="1" 
-                    Orientation="Horizontal" HorizontalAlignment="Center" 
-                    Padding="20" Spacing="20" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+                    Orientation="Vertical" HorizontalAlignment="Stretch" 
+                    Padding="20" Spacing="8" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
             
-            <Button Command="{x:Bind ViewModel.ToggleRecordingCommand}" 
-                    Content="{x:Bind ViewModel.RecordButtonText, Mode=OneWay}"
-                    Style="{StaticResource AccentButtonStyle}"
-                    Height="40" Width="120"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="20">
+                <Button Command="{x:Bind ViewModel.ToggleRecordingCommand}" 
+                        Content="{x:Bind ViewModel.RecordButtonText, Mode=OneWay}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Height="40" Width="120"/>
 
-            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                       VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+            
+            <TextBlock Text="{x:Bind ViewModel.GoogleDriveStatus, Mode=OneWay}" 
+                       FontSize="11" Foreground="Gray" 
+                       HorizontalAlignment="Center"/>
         </StackPanel>
     </Grid>
 </Page>

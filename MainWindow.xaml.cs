@@ -13,6 +13,12 @@ namespace TimeLapseCam
             this.InitializeComponent();
             this.Title = "TimeLapse Webcam Recorder";
             
+            // Set window to compact size (~50% of default)
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            appWindow.Resize(new Windows.Graphics.SizeInt32(1040, 500));
+            
             // Set initial page
             NavView.SelectedItem = NavView.MenuItems.OfType<NavigationViewItem>().First();
             ContentFrame.Navigate(typeof(CapturePage));

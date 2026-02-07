@@ -26,6 +26,7 @@ namespace TimeLapseCam.ViewModels
         private readonly AudioService _audioService;
         private readonly ObjectDetectionService _detectionService;
         private readonly EventLogService _eventLogService;
+        private SecurityAuditLog? _auditLog;
 
         [ObservableProperty]
         private bool _isRecording;
@@ -38,6 +39,9 @@ namespace TimeLapseCam.ViewModels
 
         [ObservableProperty]
         private ObservableCollection<EventItem> _recentEvents = new();
+
+        [ObservableProperty]
+        private string _googleDriveStatus = "Checking...";
 
         private VideoWriter? _videoWriter;
         private DateTime _recordingStartTime;
@@ -64,6 +68,38 @@ namespace TimeLapseCam.ViewModels
 
             _cameraService.FrameArrived += OnFrameArrived;
             _audioService.AudioLevelChanged += OnAudioLevelChanged;
+
+            // Check Google Drive status and initialize audit log
+            CheckGoogleDriveStatus();
+            InitializeAuditLog();
+        }
+
+        private void InitializeAuditLog()
+        {
+            try
+            {
+                string localDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string? drivePath = FindGoogleDriveFolder();
+                _auditLog = new SecurityAuditLog(localDocs, drivePath);
+                _auditLog.Log("STARTUP", $"Application started, Google Drive: {(drivePath != null ? drivePath : "not detected")}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AuditLog] Init error: {ex.Message}");
+            }
+        }
+
+        private void CheckGoogleDriveStatus()
+        {
+            string? drivePath = FindGoogleDriveFolder();
+            if (drivePath != null)
+            {
+                GoogleDriveStatus = $"☁️ Google Drive: ✓ ({drivePath})";
+            }
+            else
+            {
+                GoogleDriveStatus = "⚠️ Google Drive: Not detected — Install Google Drive Desktop for cloud backup";
+            }
         }
 
         [ObservableProperty]
@@ -166,6 +202,7 @@ namespace TimeLapseCam.ViewModels
                 RecordButtonText = "Stop Recording";
                 StatusMessage = "Recording...";
                 _eventLogService.LogEvent("System", "Recording Started", TimeSpan.Zero);
+                _auditLog?.Log("RECORDING_START", $"Recording started: {_finalVideoPath}");
 
                 // Load detection model in background (non-blocking)
                 _ = EnsureDetectionModelAsync();
@@ -196,6 +233,7 @@ namespace TimeLapseCam.ViewModels
                 _videoWriter = null;
 
                 _eventLogService.LogEvent("System", "Recording Stopped", DateTime.Now - _recordingStartTime);
+                _auditLog?.Log("RECORDING_STOP", $"Recording stopped after {(DateTime.Now - _recordingStartTime).TotalMinutes:F1} minutes");
 
                 StatusMessage = "Processing/Merging...";
                 
@@ -256,9 +294,26 @@ namespace TimeLapseCam.ViewModels
 
         private string? FindGoogleDriveFolder()
         {
-            // Check common Google Drive Desktop paths
             string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             
+            // Check email-specific folders FIRST — these are the real synced folders
+            // e.g. "My Drive (user@gmail.com)", "Google Drive (user@gmail.com)"
+            try
+            {
+                foreach (var dir in Directory.GetDirectories(userProfile, "My Drive (*"))
+                {
+                    Debug.WriteLine($"[GoogleDrive] Found (email): {dir}");
+                    return dir;
+                }
+                foreach (var dir in Directory.GetDirectories(userProfile, "Google Drive (*"))
+                {
+                    Debug.WriteLine($"[GoogleDrive] Found (email): {dir}");
+                    return dir;
+                }
+            }
+            catch { }
+
+            // Fallback: check plain folder names
             string[] candidates = new[]
             {
                 Path.Combine(userProfile, "Google Drive"),
@@ -268,7 +323,11 @@ namespace TimeLapseCam.ViewModels
 
             foreach (var path in candidates)
             {
-                if (Directory.Exists(path)) return path;
+                if (Directory.Exists(path))
+                {
+                    Debug.WriteLine($"[GoogleDrive] Found: {path}");
+                    return path;
+                }
             }
 
             // Check for mounted drive letter (G:\ etc) via registry
@@ -438,26 +497,48 @@ namespace TimeLapseCam.ViewModels
                     {
                         _personFrameCounter++;
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
-                        UploadFrameToGoogleDrive(mat, $"ALERT_{timestamp}.jpg");
+                        SaveAndUploadFrame(mat, $"ALERT_{timestamp}.jpg");
                         
                         if (_personFrameCounter == 1)
                         {
                             _eventLogService.LogEvent("Security", "Person detected — uploading frames", DateTime.Now - _recordingStartTime);
-                            Debug.WriteLine("[Security] PERSON DETECTED — starting frame upload");
+                            _auditLog?.Log("PERSON_DETECTED", "Person detected in frame — starting alert upload");
+                        }
+                        
+                        _dispatcherQueue?.TryEnqueue(() =>
+                        {
+                            StatusMessage = $"🚨 Person detected! Saving frame {_personFrameCounter}/{PersonUploadFrameLimit} to local + cloud";
+                        });
+                        
+                        // After uploading all alert frames, disconnect Google Drive for security
+                        if (_personFrameCounter >= PersonUploadFrameLimit)
+                        {
+                            DisconnectGoogleDrive();
                         }
                     }
                 }
                 else
                 {
                     // No person — reset counter, do hourly snapshot
+                    if (_personFrameCounter > 0)
+                    {
+                        int saved = _personFrameCounter;
+                        _dispatcherQueue?.TryEnqueue(() =>
+                        {
+                            StatusMessage = $"Recording... ({saved} alert frames saved to local + cloud)";
+                        });
+                    }
                     _personFrameCounter = 0;
 
                     if ((DateTime.Now - _lastHourlySnapshot).TotalHours >= 1.0)
                     {
                         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                        UploadFrameToGoogleDrive(mat, $"Snapshot_{timestamp}.jpg");
+                        SaveAndUploadFrame(mat, $"Snapshot_{timestamp}.jpg");
                         _lastHourlySnapshot = DateTime.Now;
-                        Debug.WriteLine("[Security] Hourly snapshot uploaded");
+                        _dispatcherQueue?.TryEnqueue(() =>
+                        {
+                            StatusMessage = "Recording... (hourly snapshot saved to local + cloud)";
+                        });
                     }
                 }
             }
@@ -467,25 +548,74 @@ namespace TimeLapseCam.ViewModels
             }
         }
 
-        private void UploadFrameToGoogleDrive(Mat frame, string fileName)
+        private void SaveAndUploadFrame(Mat frame, string fileName)
         {
             try
             {
+                string dateFolder = DateTime.Now.ToString("yyyy-MM-dd");
+
+                // Save locally
+                string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                string localFolder = Path.Combine(documents, "TimeLapseCam", "Alerts", dateFolder);
+                if (!Directory.Exists(localFolder)) Directory.CreateDirectory(localFolder);
+                string localPath = Path.Combine(localFolder, fileName);
+                Cv2.ImWrite(localPath, frame);
+
+                // Save to Google Drive
                 string? drivePath = FindGoogleDriveFolder();
-                if (drivePath == null) return;
-
-                string alertFolder = Path.Combine(drivePath, "TimeLapseCam", "Alerts");
-                if (!Directory.Exists(alertFolder)) Directory.CreateDirectory(alertFolder);
-
-                string destPath = Path.Combine(alertFolder, fileName);
-                Cv2.ImWrite(destPath, frame);
+                if (drivePath != null)
+                {
+                    string driveFolder = Path.Combine(drivePath, "TimeLapseCam", "Alerts", dateFolder);
+                    if (!Directory.Exists(driveFolder)) Directory.CreateDirectory(driveFolder);
+                    string destPath = Path.Combine(driveFolder, fileName);
+                    Cv2.ImWrite(destPath, frame);
+                    
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        GoogleDriveStatus = $"☁️ Saved: {destPath}";
+                    });
+                }
+                else
+                {
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        GoogleDriveStatus = "⚠️ Google Drive: Not detected — saving locally only";
+                    });
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Security] Upload frame error: {ex.Message}");
+                Debug.WriteLine($"[Security] Save frame error: {ex.Message}");
             }
         }
 
+
+        /// <summary>
+        /// Disconnect Google Drive after uploading alert evidence.
+        /// Kills the Google Drive sync process so an intruder cannot delete cloud copies.
+        /// </summary>
+        private void DisconnectGoogleDrive()
+        {
+            try
+            {
+                _auditLog?.Log("SECURITY_LOCKDOWN", $"Disconnecting Google Drive — {PersonUploadFrameLimit} alert frames uploaded, protecting cloud evidence");
+
+                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("GoogleDriveFS"))
+                {
+                    proc.Kill();
+                }
+
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    GoogleDriveStatus = "🔒 Google Drive disconnected — evidence secured in cloud";
+                    StatusMessage = $"🔒 {PersonUploadFrameLimit} alert frames secured. Google Drive disconnected to protect evidence.";
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Security] Failed to disconnect Google Drive: {ex.Message}");
+            }
+        }
 
         private void InitializeWriterIfNeeded()
         {
