@@ -190,6 +190,9 @@ namespace TimeLapseCam.ViewModels
                 {
                      await MergeMediaAsync(_tempVideoPath, _tempAudioPath, _finalVideoPath);
                      StatusMessage = $"Saved: {Path.GetFileName(_finalVideoPath)}";
+                     
+                     // Auto-backup to Google Drive if available
+                     _ = BackupToGoogleDriveAsync(_finalVideoPath);
                 }
                 else
                 {
@@ -206,8 +209,84 @@ namespace TimeLapseCam.ViewModels
             }
         }
 
+        private async Task BackupToGoogleDriveAsync(string localFilePath)
+        {
+            try
+            {
+                string? drivePath = FindGoogleDriveFolder();
+                if (drivePath == null) return;
+
+                string backupFolder = Path.Combine(drivePath, "TimeLapseCam");
+                if (!Directory.Exists(backupFolder)) Directory.CreateDirectory(backupFolder);
+
+                string destPath = Path.Combine(backupFolder, Path.GetFileName(localFilePath));
+                
+                await Task.Run(() => File.Copy(localFilePath, destPath, true));
+                
+                // Also copy the event log if it exists
+                string jsonPath = Path.ChangeExtension(localFilePath, ".json");
+                if (File.Exists(jsonPath))
+                {
+                    string destJson = Path.Combine(backupFolder, Path.GetFileName(jsonPath));
+                    File.Copy(jsonPath, destJson, true);
+                }
+
+                Debug.WriteLine($"[GoogleDrive] Backed up to: {destPath}");
+                StatusMessage += " | Cloud backup ✓";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[GoogleDrive] Backup failed: {ex.Message}");
+            }
+        }
+
+        private string? FindGoogleDriveFolder()
+        {
+            // Check common Google Drive Desktop paths
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            
+            string[] candidates = new[]
+            {
+                Path.Combine(userProfile, "Google Drive"),
+                Path.Combine(userProfile, "My Drive"),
+                Path.Combine(userProfile, "GoogleDrive"),
+            };
+
+            foreach (var path in candidates)
+            {
+                if (Directory.Exists(path)) return path;
+            }
+
+            // Check for mounted drive letter (G:\ etc) via registry
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Google\DriveFS\Share");
+                if (key != null)
+                {
+                    var mountPoint = key.GetValue("MountPoint") as string;
+                    if (!string.IsNullOrEmpty(mountPoint) && Directory.Exists(mountPoint))
+                        return Path.Combine(mountPoint, "My Drive");
+                }
+            }
+            catch { }
+
+            // Check all drive letters for Google Drive
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (drive.DriveType == DriveType.Fixed || drive.DriveType == DriveType.Network)
+                {
+                    string gDrive = Path.Combine(drive.RootDirectory.FullName, "My Drive");
+                    if (Directory.Exists(gDrive)) return gDrive;
+                }
+            }
+
+            return null;
+        }
+
         private async Task MergeMediaAsync(string videoPath, string audioPath, string destination)
         {
+
             try 
             {
                 // Unpackaged app might struggle with MediaComposition if not careful with codecs
