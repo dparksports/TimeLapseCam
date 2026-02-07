@@ -9,68 +9,15 @@
     xmlns:services="using:TimeLapseCam.Services"
     mc:Ignorable="d">
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="300" />
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <!-- Camera Preview -->
-        <MediaPlayerElement x:Name="CameraPreview" 
-                            Grid.Column="0" Grid.Row="0"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                            AutoPlay="True" />
+    <NavigationView x:Name="NavView"
+                    PaneDisplayMode="Left"
+                    SelectionChanged="NavView_SelectionChanged"
+                    IsSettingsVisible="False">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="Capture" Tag="CapturePage" Icon="Video"/>
+            <NavigationViewItem Content="Review" Tag="ReviewPage" Icon="OutlineStar"/>
+        </NavigationView.MenuItems>
         
-        <!-- Overlay Detection Info (Optional) -->
-        <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                   Grid.Column="0" Grid.Row="0"
-                   VerticalAlignment="Top" HorizontalAlignment="Left"
-                   Margin="10" Foreground="Lime" FontSize="14"
-                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
-
-        <!-- Side Panel: Event Log -->
-        <Grid Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" 
-              Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-              BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            
-            <TextBlock Text="Event Log" Style="{StaticResource SubtitleTextBlockStyle}" Margin="10"/>
-            
-            <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.RecentEvents, Mode=OneWay}"
-                      Padding="10">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="services:EventItem">
-                        <StackPanel Margin="0,5">
-                            <TextBlock Text="{x:Bind Type}" FontWeight="Bold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                            <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap"/>
-                            <TextBlock Text="{x:Bind Timestamp}" Foreground="Gray" FontSize="11"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </Grid>
-
-        <!-- Bottom Controls -->
-        <StackPanel Grid.Column="0" Grid.Row="1" 
-                    Orientation="Horizontal" HorizontalAlignment="Center" 
-                    Padding="20" Spacing="20" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
-            
-            <Button Command="{x:Bind ViewModel.ToggleRecordingCommand}" 
-                    Content="{x:Bind ViewModel.RecordButtonText, Mode=OneWay}"
-                    Style="{StaticResource AccentButtonStyle}"
-                    Height="40" Width="120"/>
-
-            <Button Content="Review Recordings" Click="ReviewButton_Click" Height="40"/>
-
-            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                       VerticalAlignment="Center"/>
-        </StackPanel>
-    </Grid>
+        <Frame x:Name="ContentFrame"/>
+    </NavigationView>
 </Window>

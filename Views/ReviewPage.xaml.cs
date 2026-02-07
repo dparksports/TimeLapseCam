@@ -1,27 +1,23 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using TimeLapseCam.ViewModels;
 using Windows.Media.Playback;
 
-namespace TimeLapseCam
+namespace TimeLapseCam.Views
 {
-    public sealed partial class ReviewWindow : Window
+    public sealed partial class ReviewPage : Page
     {
         public ReviewViewModel ViewModel { get; }
 
-        public ReviewWindow()
+        public ReviewPage()
         {
             this.InitializeComponent();
             ViewModel = new ReviewViewModel();
-            this.Title = "Review Recordings";
-            
-            // Player element needs a MediaPlayer
-            // By default MediaPlayerElement creates one if AutoPlay=True?
-            // Let's ensure one exists
-            
-            this.Activated += ReviewWindow_Activated;
+            this.Loaded += ReviewPage_Loaded;
         }
 
-        private void ReviewWindow_Activated(object sender, WindowActivatedEventArgs args)
+        private void ReviewPage_Loaded(object sender, RoutedEventArgs e)
         {
              if (Player.MediaPlayer == null)
              {
