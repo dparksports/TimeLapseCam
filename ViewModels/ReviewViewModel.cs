@@ -80,21 +80,26 @@ namespace TimeLapseCam.ViewModels
                      Debug.WriteLine($"[ReviewVM] Error loading video: {ex.Message}");
                 }
 
-                // Load existing events or run detection
+                // Load existing events
                 string jsonPath = Path.ChangeExtension(value.FilePath, ".json");
                 var events = _eventLogService.LoadLog(jsonPath);
-                
-                if (events.Count > 0)
-                {
-                    Events = new ObservableCollection<EventItem>(events);
-                    AnalysisStatus = $"{events.Count} events";
-                }
-                else
-                {
-                    Events.Clear();
-                    await AnalyzeVideoAsync(value.FilePath, jsonPath);
-                }
+                Events = new ObservableCollection<EventItem>(events);
+                AnalysisStatus = events.Count > 0 ? $"{events.Count} events" : "Click Detect to analyze";
             }
+        }
+
+        [RelayCommand]
+        private async Task Analyze()
+        {
+            if (SelectedRecording == null)
+            {
+                AnalysisStatus = "Select a recording first";
+                return;
+            }
+            
+            string jsonPath = Path.ChangeExtension(SelectedRecording.FilePath, ".json");
+            Events.Clear();
+            await AnalyzeVideoAsync(SelectedRecording.FilePath, jsonPath);
         }
 
         private async Task AnalyzeVideoAsync(string videoPath, string jsonPath)
@@ -135,11 +140,8 @@ namespace TimeLapseCam.ViewModels
                     
                     foreach (var result in results)
                     {
-                        if (result.Label == "person" || result.Label == "cat" || result.Label == "dog")
-                        {
-                            var msg = $"Detected {result.Label} ({result.Confidence:P0})";
-                            _eventLogService.LogEvent("Object", msg, timestamp);
-                        }
+                        var msg = $"Detected {result.Label} ({result.Confidence:P0})";
+                        _eventLogService.LogEvent("Object", msg, timestamp);
                     }
 
                     frameIndex++;

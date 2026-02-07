@@ -47,11 +47,19 @@
         <Grid Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <TextBlock Text="Events (Click to Jump)" Style="{StaticResource SubtitleTextBlockStyle}" Margin="10"/>
+            <StackPanel Margin="10" Spacing="8">
+                <TextBlock Text="Events" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                <Button Content="🔍 Detect Objects" 
+                        Command="{x:Bind ViewModel.AnalyzeCommand}"
+                        HorizontalAlignment="Stretch"/>
+                <TextBlock Text="{x:Bind ViewModel.AnalysisStatus, Mode=OneWay}" 
+                           FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
+            </StackPanel>
             
-            <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.Events, Mode=OneWay}"
+            <ListView Grid.Row="2" ItemsSource="{x:Bind ViewModel.Events, Mode=OneWay}"
                       SelectedItem="{x:Bind ViewModel.SelectedEvent, Mode=TwoWay}"
                       Padding="10">
                 <ListView.ItemTemplate>
