@@ -81,31 +81,37 @@ namespace TimeLapseCam.ViewModels
 
         public async Task InitializeAsync()
         {
-            StatusMessage = "Initializing...";
+            StatusMessage = "Loading cameras...";
             try
             {
-                // Load Cameras
+                // Phase 1: Enumerate cameras (fast)
                 var devices = await _cameraService.GetAvailableCamerasAsync();
                 Cameras.Clear();
                 foreach (var device in devices) Cameras.Add(device);
 
                 var defaultCamera = devices.FirstOrDefault();
-                SelectedCamera = defaultCamera; // This will trigger OnSelectedCameraChanged if we were already initialized, but we aren't yet.
+                SelectedCamera = defaultCamera;
 
+                // Phase 2: Initialize camera (may take a moment)
+                StatusMessage = "Starting camera...";
                 await InitializeCameraAsync(defaultCamera);
-
-                // Load Model
-                string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
-                if (File.Exists(modelPath))
-                {
-                    await _detectionService.InitializeAsync(modelPath);
-                    StatusMessage = "Ready (AI Loaded)";
-                }
-                else
-                {
-                    StatusMessage = "Ready (AI Model Missing - Detection Disabled)";
-                }
                 IsInitialized = true;
+                StatusMessage = "Ready";
+
+                // Phase 3: Load AI model in background (non-blocking)
+                _ = Task.Run(async () =>
+                {
+                    string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
+                    if (File.Exists(modelPath))
+                    {
+                        await _detectionService.InitializeAsync(modelPath);
+                        _dispatcherQueue.TryEnqueue(() => StatusMessage = "Ready (AI Loaded)");
+                    }
+                    else
+                    {
+                        _dispatcherQueue.TryEnqueue(() => StatusMessage = "Ready (AI Model Missing)");
+                    }
+                });
             }
             catch (Exception ex)
             {
