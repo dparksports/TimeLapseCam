@@ -17,7 +17,7 @@ A powerful WinUI 3 application for time-lapse recording with AI-powered event de
 ## Installation
 
 1.  **Download**: Get the latest release from the [Releases](https://github.com/dparksports/TimeLapseCam/releases/latest) page.
-2.  **Extract**: Unzip the `TimeLapseCam_v1.0.zip` file.
+2.  **Extract**: Unzip the `TimeLapseCam_v1.1.zip` file.
 3.  **Run**: Double-click `TimeLapseCam.exe`.
 
 > **Note**: This is an unpackaged WinUI 3 app. You may need to install the [Windows App SDK Runtime](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads) if it's not already on your system.
