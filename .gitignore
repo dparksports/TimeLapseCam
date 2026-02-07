@@ -9,3 +9,5 @@ obj/
 !appsettings.json
 !manifest.json
 debug.log
+
+.venv/

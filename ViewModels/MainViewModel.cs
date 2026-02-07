@@ -107,8 +107,8 @@ namespace TimeLapseCam.ViewModels
                 if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
 
                 _finalVideoPath = Path.Combine(folder, $"Recording_{timestamp}.mp4");
-                _tempVideoPath = Path.Combine(ApplicationData.Current.TemporaryFolder.Path, $"temp_vid_{timestamp}.mp4");
-                _tempAudioPath = Path.Combine(ApplicationData.Current.TemporaryFolder.Path, $"temp_audio_{timestamp}.wav");
+                _tempVideoPath = Path.Combine(Path.GetTempPath(), $"temp_vid_{timestamp}.mp4");
+                _tempAudioPath = Path.Combine(Path.GetTempPath(), $"temp_audio_{timestamp}.wav");
 
                 _eventLogService.Initialize(_finalVideoPath);
 
@@ -131,7 +131,7 @@ namespace TimeLapseCam.ViewModels
                 if (ex.StackTrace?.Contains("AudioService") == true) source = "Audio";
                 if (ex.StackTrace?.Contains("VideoWriter") == true) source = "VideoWriter";
                 
-                StatusMessage = $"Start Failed ({source}): {ex.Message}";
+                StatusMessage = $"[v0.3] Start Failed ({source}): {ex.Message}";
                 IsRecording = false;
                 Debug.WriteLine($"Start Recording Error: {ex}");
             }
