@@ -7,6 +7,7 @@ using System.Linq;
 using TimeLapseCam.Services;
 using Windows.Media.Core;
 using Windows.Media.Playback;
+using System.Diagnostics;
 
 namespace TimeLapseCam.ViewModels
 {
@@ -56,13 +57,23 @@ namespace TimeLapseCam.ViewModels
             }
         }
 
-        partial void OnSelectedRecordingChanged(RecordingFile? value)
+        async partial void OnSelectedRecordingChanged(RecordingFile? value)
         {
             if (value != null)
             {
                 // Load Video
-                PlaybackSource = MediaSource.CreateFromUri(new Uri(value.FilePath));
-                
+                try 
+                {
+                    Debug.WriteLine($"[ReviewVM] Loading video: {value.FilePath}");
+                    // Use StorageFile to avoid Uri parsing issues with local paths
+                    var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(value.FilePath);
+                    PlaybackSource = MediaSource.CreateFromStorageFile(file);
+                }
+                catch (Exception ex)
+                {
+                     Debug.WriteLine($"[ReviewVM] Error loading video: {ex.Message}");
+                }
+
                 // Load Events
                 string jsonPath = Path.ChangeExtension(value.FilePath, ".json");
                 var events = _eventLogService.LoadLog(jsonPath);

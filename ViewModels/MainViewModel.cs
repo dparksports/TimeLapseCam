@@ -58,13 +58,19 @@ namespace TimeLapseCam.ViewModels
             _audioService.AudioLevelChanged += OnAudioLevelChanged;
         }
 
-        public async Task InitializeAsync(Microsoft.UI.Xaml.Controls.MediaPlayerElement previewElement)
+        [ObservableProperty]
+        private Microsoft.UI.Xaml.Media.ImageSource? _previewSource;
+
+        private Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        public bool IsInitialized { get; private set; }
+
+        public async Task InitializeAsync()
         {
             StatusMessage = "Initializing...";
             try
             {
                 await _cameraService.InitializeAsync();
-                await _cameraService.StartPreviewAsync(previewElement);
+                await _cameraService.StartPreviewAsync();
                 
                 // Load Model
                 string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
@@ -77,6 +83,7 @@ namespace TimeLapseCam.ViewModels
                 {
                     StatusMessage = "Ready (AI Model Missing - Detection Disabled)";
                 }
+                IsInitialized = true;
             }
             catch (Exception ex)
             {
@@ -244,6 +251,27 @@ namespace TimeLapseCam.ViewModels
                 }
             }
 
+            // Update UI Preview
+            _dispatcherQueue.TryEnqueue(async () => 
+            {
+                 // Create SoftwareBitmapSource
+                 if (bitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 || bitmap.BitmapAlphaMode != BitmapAlphaMode.Premultiplied)
+                 {
+                     // Convert if needed (heavy on UI thread, but necessary for XAML)
+                     var converted = SoftwareBitmap.Convert(bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                     var source = new Microsoft.UI.Xaml.Media.Imaging.SoftwareBitmapSource();
+                     await source.SetBitmapAsync(converted);
+                     PreviewSource = source;
+                     // converted.Dispose(); // SoftwareBitmapSource takes ownership? No, we should rely on GC or Dispose if we are sure.
+                 }
+                 else
+                 {
+                     var source = new Microsoft.UI.Xaml.Media.Imaging.SoftwareBitmapSource();
+                     await source.SetBitmapAsync(bitmap);
+                     PreviewSource = source;
+                 }
+            });
+
             // 2. Object Detection (Every 500ms)
             if (_detectionService.IsInitialized && (DateTime.Now - _lastDetectionTime).TotalMilliseconds > 500)
             {
@@ -261,7 +289,7 @@ namespace TimeLapseCam.ViewModels
                 // 1 FPS, Color
                 // Codec: Use "avc1" (H.264). Requires OpenH264 or Cisco DLL or system codec.
                 // Or "mp4v" (MPEG-4) which is safer.
-                _videoWriter = new VideoWriter(_tempVideoPath, FourCC.MP4V, 1, new OpenCvSharp.Size(_frameWidth, _frameHeight), true);
+                _videoWriter = new VideoWriter(_tempVideoPath, FourCC.H264, 1, new OpenCvSharp.Size(_frameWidth, _frameHeight), true);
             }
         }
 

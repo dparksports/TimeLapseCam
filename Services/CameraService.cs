@@ -65,13 +65,11 @@ namespace TimeLapseCam.Services
             }
         }
 
-        public async Task StartPreviewAsync(MediaPlayerElement previewElement)
+        public async Task StartPreviewAsync()
         {
             if (!_isInitialized || _mediaCapture == null) return;
-
-            // Use MediaSource to display preview
-            // var mediaSource = MediaSource.CreateFromMediaCapture(_mediaCapture);
-            // previewElement.Source = mediaSource;
+            
+            // Preview is handled via FrameArrived event and MainViewModel binding
             
             // Start the frame reader
             if (_frameReader != null)

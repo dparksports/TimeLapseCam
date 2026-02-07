@@ -22,7 +22,7 @@ namespace TimeLapseCam.Views
 
         private void CapturePage_Loaded(object sender, RoutedEventArgs e)
         {
-             _ = ViewModel.InitializeAsync(CameraPreview);
+             _ = ViewModel.InitializeAsync();
         }
 
         private void CapturePage_Unloaded(object sender, RoutedEventArgs e)
