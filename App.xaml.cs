@@ -9,7 +9,7 @@ namespace TimeLapseCam
             this.InitializeComponent();
         }
 
-        protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             m_window = new MainWindow();
             m_window.Activate();
@@ -17,12 +17,15 @@ namespace TimeLapseCam
             // Execute post-launch logic after window is visible
             m_window.DispatcherQueue.TryEnqueue(async () =>
             {
-                // Initialize Analytics
+                // Wait for XamlRoot to be ready
+                await Task.Delay(100);
+                
+                // Check EULA first (blocking)
+                await CheckEulaAsync();
+                
+                // Initialize Analytics after EULA
                 var analytics = new Services.FirebaseAnalyticsService();
                 _ = analytics.LogEventAsync("app_launch");
-
-                // Check EULA
-                await CheckEulaAsync();
             });
         }
 
@@ -33,13 +36,13 @@ namespace TimeLapseCam
             if (!isAccepted)
             {
                 // Ensure XamlRoot is ready
-                if (m_window.Content == null) return;
+                if (m_window?.Content == null) return;
                 
                 var root = m_window.Content as FrameworkElement;
                 if (root != null && root.XamlRoot != null)
                 {
                     var dialog = new Views.EulaDialog();
-                    dialog.XamlRoot = root.XamlRoot;
+                    dialog.XamlRoot = root.XamlRoot!;
                     
                     var result = await dialog.ShowAsync();
                     if (result == ContentDialogResult.Primary)
