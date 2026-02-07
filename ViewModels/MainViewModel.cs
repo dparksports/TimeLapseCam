@@ -24,7 +24,6 @@ namespace TimeLapseCam.ViewModels
     {
         private readonly CameraService _cameraService;
         private readonly AudioService _audioService;
-        private readonly ObjectDetectionService _detectionService;
         private readonly EventLogService _eventLogService;
 
         [ObservableProperty]
@@ -46,13 +45,12 @@ namespace TimeLapseCam.ViewModels
         private string _finalVideoPath = string.Empty;
         private int _frameWidth;
         private int _frameHeight;
-        private DateTime _lastDetectionTime;
+
 
         public MainViewModel()
         {
             _cameraService = new CameraService();
             _audioService = new AudioService();
-            _detectionService = new ObjectDetectionService();
             _eventLogService = new EventLogService();
 
             _cameraService.FrameArrived += OnFrameArrived;
@@ -102,15 +100,6 @@ namespace TimeLapseCam.ViewModels
             }
         }
 
-        private async Task EnsureModelLoadedAsync()
-        {
-            if (_detectionService.IsInitialized) return;
-            string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
-            if (File.Exists(modelPath))
-            {
-                await _detectionService.InitializeAsync(modelPath);
-            }
-        }
 
         private async Task InitializeCameraAsync(DeviceInformation? camera)
         {
@@ -128,7 +117,7 @@ namespace TimeLapseCam.ViewModels
         }
 
         [RelayCommand]
-        private async Task ToggleRecording()
+        private void ToggleRecording()
         {
             if (IsRecording)
             {
@@ -136,17 +125,14 @@ namespace TimeLapseCam.ViewModels
             }
             else
             {
-                await StartRecordingAsync();
+                StartRecording();
             }
         }
 
-        private async Task StartRecordingAsync()
+        private void StartRecording()
         {
             try
             {
-                // Load AI model on first recording (lazy init)
-                _ = EnsureModelLoadedAsync();
-                
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                 string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string folder = Path.Combine(documents, "TimeLapseCam");
@@ -312,12 +298,7 @@ namespace TimeLapseCam.ViewModels
                  }
             });
 
-            // 2. Object Detection (Every 500ms)
-            if (_detectionService.IsInitialized && (DateTime.Now - _lastDetectionTime).TotalMilliseconds > 500)
-            {
-                DetectObjects(bitmap);
-                _lastDetectionTime = DateTime.Now;
-            }
+
         }
 
         private DateTime _lastFrameWriteTime;
@@ -345,35 +326,7 @@ namespace TimeLapseCam.ViewModels
             }
         }
 
-        private unsafe void DetectObjects(SoftwareBitmap bitmap)
-        {
-            // Convert to Mat
-            using var mat = SoftwareBitmapToMat(bitmap);
-            if (mat == null) return;
 
-            var results = _detectionService.Detect(mat);
-            foreach (var result in results)
-            {
-                // Filter?
-                if (result.Label == "person" || result.Label == "cat" || result.Label == "dog")
-                {
-                    // Log
-                    var time = IsRecording ? (DateTime.Now - _recordingStartTime) : TimeSpan.Zero;
-                    var msg = $"Detected {result.Label} ({result.Confidence:P0})";
-                    
-                    // Update UI
-                    // Must be on UI thread
-                    // For now, just log to service
-                    if (IsRecording)
-                    {
-                        _eventLogService.LogEvent("Object", msg, time);
-                    }
-                    
-                    // TODO: Draw bounding box on Preview? 
-                    // Complex with overlay. We can update a "Detections" observable property instead.
-                }
-            }
-        }
         
         private unsafe Mat? SoftwareBitmapToMat(SoftwareBitmap? bitmap)
         {

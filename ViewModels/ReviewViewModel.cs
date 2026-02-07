@@ -4,16 +4,19 @@ using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using TimeLapseCam.Services;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using System.Diagnostics;
+using OpenCvSharp;
 
 namespace TimeLapseCam.ViewModels
 {
     public partial class ReviewViewModel : ObservableObject
     {
         private readonly EventLogService _eventLogService;
+        private readonly ObjectDetectionService _detectionService;
 
         [ObservableProperty]
         private ObservableCollection<RecordingFile> _recordings = new();
@@ -30,11 +33,15 @@ namespace TimeLapseCam.ViewModels
         [ObservableProperty] 
         private IMediaPlaybackSource? _playbackSource;
 
+        [ObservableProperty]
+        private string _analysisStatus = "";
+
         private MediaPlayer? _mediaPlayer;
 
         public ReviewViewModel()
         {
             _eventLogService = new EventLogService();
+            _detectionService = new ObjectDetectionService();
             LoadRecordings();
         }
 
@@ -65,7 +72,6 @@ namespace TimeLapseCam.ViewModels
                 try 
                 {
                     Debug.WriteLine($"[ReviewVM] Loading video: {value.FilePath}");
-                    // Use StorageFile to avoid Uri parsing issues with local paths
                     var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(value.FilePath);
                     PlaybackSource = MediaSource.CreateFromStorageFile(file);
                 }
@@ -74,18 +80,81 @@ namespace TimeLapseCam.ViewModels
                      Debug.WriteLine($"[ReviewVM] Error loading video: {ex.Message}");
                 }
 
-                // Load Events
+                // Load existing events or run detection
                 string jsonPath = Path.ChangeExtension(value.FilePath, ".json");
                 var events = _eventLogService.LoadLog(jsonPath);
-                Events = new ObservableCollection<EventItem>(events);
+                
+                if (events.Count > 0)
+                {
+                    Events = new ObservableCollection<EventItem>(events);
+                    AnalysisStatus = $"{events.Count} events";
+                }
+                else
+                {
+                    Events.Clear();
+                    await AnalyzeVideoAsync(value.FilePath, jsonPath);
+                }
             }
+        }
+
+        private async Task AnalyzeVideoAsync(string videoPath, string jsonPath)
+        {
+            AnalysisStatus = "Loading AI model...";
+            
+            if (!_detectionService.IsInitialized)
+            {
+                string modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "yolov8n.onnx");
+                if (!File.Exists(modelPath))
+                {
+                    AnalysisStatus = "AI model not found";
+                    return;
+                }
+                await _detectionService.InitializeAsync(modelPath);
+            }
+
+            AnalysisStatus = "Analyzing video...";
+            _eventLogService.Initialize(videoPath);
+
+            await Task.Run(() =>
+            {
+                using var capture = new VideoCapture(videoPath);
+                if (!capture.IsOpened()) return;
+
+                double fps = capture.Fps;
+                if (fps <= 0) fps = 1;
+
+                int frameIndex = 0;
+                using var frame = new Mat();
+                
+                while (capture.Read(frame))
+                {
+                    if (frame.Empty()) break;
+
+                    var timestamp = TimeSpan.FromSeconds(frameIndex / fps);
+                    var results = _detectionService.Detect(frame);
+                    
+                    foreach (var result in results)
+                    {
+                        if (result.Label == "person" || result.Label == "cat" || result.Label == "dog")
+                        {
+                            var msg = $"Detected {result.Label} ({result.Confidence:P0})";
+                            _eventLogService.LogEvent("Object", msg, timestamp);
+                        }
+                    }
+
+                    frameIndex++;
+                }
+            });
+
+            var analyzedEvents = _eventLogService.LoadLog(jsonPath);
+            Events = new ObservableCollection<EventItem>(analyzedEvents);
+            AnalysisStatus = analyzedEvents.Count > 0 ? $"Found {analyzedEvents.Count} events" : "No events detected";
         }
 
         partial void OnSelectedEventChanged(EventItem? value)
         {
             if (value != null && _mediaPlayer != null)
             {
-                // Jump to timestamp - 5 seconds context
                 var seekTime = value.Timestamp - TimeSpan.FromSeconds(5);
                 if (seekTime < TimeSpan.Zero) seekTime = TimeSpan.Zero;
                 
