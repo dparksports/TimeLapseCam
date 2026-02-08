@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Whisper.net;
@@ -533,6 +534,42 @@ namespace TimeLapseCam.Services
         {
             ProgressChanged?.Invoke(this, message);
         }
+        /// <summary>
+        /// Parses transcript text into structured segments with timestamps.
+        /// Expected format per line: [hh:mm:ss --> hh:mm:ss] text
+        /// </summary>
+        public static List<TranscriptSegment> ParseSegments(string transcriptText)
+        {
+            var segments = new List<TranscriptSegment>();
+            if (string.IsNullOrWhiteSpace(transcriptText)) return segments;
+
+            // Match lines like [00:01:23 --> 00:01:45] Hello world
+            var regex = new Regex(@"\[(\d{2}:\d{2}:\d{2})\s*-->\s*(\d{2}:\d{2}:\d{2})\]\s*(.*)", RegexOptions.Compiled);
+
+            foreach (string line in transcriptText.Split('\n'))
+            {
+                var match = regex.Match(line);
+                if (match.Success)
+                {
+                    if (TimeSpan.TryParse(match.Groups[1].Value, out var start) &&
+                        TimeSpan.TryParse(match.Groups[2].Value, out var end))
+                    {
+                        string text = match.Groups[3].Value.Trim();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            segments.Add(new TranscriptSegment
+                            {
+                                Start = start,
+                                End = end,
+                                Text = text
+                            });
+                        }
+                    }
+                }
+            }
+
+            return segments;
+        }
     }
 
     public class TranscriptInfo
@@ -540,5 +577,13 @@ namespace TimeLapseCam.Services
         public string FilePath { get; set; } = string.Empty;
         public string ModelName { get; set; } = string.Empty;
         public DateTime CreatedDate { get; set; }
+    }
+
+    public class TranscriptSegment
+    {
+        public TimeSpan Start { get; set; }
+        public TimeSpan End { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public string TimeLabel => $"{Start:hh\\:mm\\:ss} → {End:hh\\:mm\\:ss}";
     }
 }

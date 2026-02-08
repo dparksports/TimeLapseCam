@@ -73,6 +73,12 @@ namespace TimeLapseCam.ViewModels
         [ObservableProperty]
         private TranscriptInfo? _selectedTranscript;
 
+        [ObservableProperty]
+        private ObservableCollection<TranscriptSegment> _transcriptSegments = new();
+
+        [ObservableProperty]
+        private TranscriptSegment? _selectedSegment;
+
         private MediaPlayer? _mediaPlayer;
 
         // Store XamlRoot for file picker
@@ -161,10 +167,22 @@ namespace TimeLapseCam.ViewModels
             if (value != null)
             {
                 TranscriptText = TranscriptionService.ReadTranscript(value.FilePath);
+                var segments = TranscriptionService.ParseSegments(TranscriptText);
+                TranscriptSegments = new ObservableCollection<TranscriptSegment>(segments);
             }
             else
             {
                 TranscriptText = "";
+                TranscriptSegments.Clear();
+            }
+        }
+
+        partial void OnSelectedSegmentChanged(TranscriptSegment? value)
+        {
+            if (value != null && _mediaPlayer != null)
+            {
+                _mediaPlayer.PlaybackSession.Position = value.Start;
+                _mediaPlayer.Play();
             }
         }
 

@@ -65,98 +65,123 @@
                             Source="{x:Bind ViewModel.PlaybackSource, Mode=OneWay}"
                             AutoPlay="True" AreTransportControlsEnabled="True"/>
 
-        <!-- Right Panel: Events + Transcription -->
-        <Grid Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <!-- Right Panel: Tabbed Detect Objects / Transcribe -->
+        <Pivot Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
             
-            <!-- Object Detection Section -->
-            <StackPanel Margin="10" Spacing="6">
-                <TextBlock Text="Detection" Style="{StaticResource SubtitleTextBlockStyle}"/>
-                <Button Content="🔍 Detect Objects" 
-                        Command="{x:Bind ViewModel.AnalyzeCommand}"
-                        HorizontalAlignment="Stretch"/>
-                <TextBlock Text="{x:Bind ViewModel.AnalysisStatus, Mode=OneWay}" 
-                           FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
-            </StackPanel>
-            
-            <!-- Events List -->
-            <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.Events, Mode=OneWay}"
-                      SelectedItem="{x:Bind ViewModel.SelectedEvent, Mode=TwoWay}"
-                      Padding="10">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="services:EventItem">
-                        <StackPanel Margin="0,3">
-                            <TextBlock Text="{x:Bind Type}" FontWeight="Bold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                            <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" FontSize="12"/>
-                            <TextBlock Text="{x:Bind Timestamp}" Foreground="Gray" FontSize="10"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <!-- Transcription Section -->
-            <StackPanel Grid.Row="2" Margin="10" Spacing="6">
-                <TextBlock Text="Transcription" Style="{StaticResource SubtitleTextBlockStyle}"/>
-                
-                <!-- Whisper Model Selector -->
-                <Grid ColumnSpacing="6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Model:" VerticalAlignment="Center" FontSize="12"/>
-                    <ComboBox Grid.Column="1" 
-                              ItemsSource="{x:Bind ViewModel.WhisperModels, Mode=OneWay}"
-                              SelectedItem="{x:Bind ViewModel.SelectedWhisperModel, Mode=TwoWay}"
-                              HorizontalAlignment="Stretch" FontSize="12"/>
-                    <Button Grid.Column="2" Content="⬇"
-                            Command="{x:Bind ViewModel.DownloadModelCommand}"
-                            ToolTipService.ToolTip="Download or re-download this model"
-                            FontSize="12" Padding="8,4"/>
+            <!-- Tab 1: Detect Objects -->
+            <PivotItem Header="Detect Objects">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <StackPanel Margin="10" Spacing="6">
+                        <Button Content="🔍 Detect Objects" 
+                                Command="{x:Bind ViewModel.AnalyzeCommand}"
+                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="{x:Bind ViewModel.AnalysisStatus, Mode=OneWay}" 
+                                   FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    
+                    <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.Events, Mode=OneWay}"
+                              SelectedItem="{x:Bind ViewModel.SelectedEvent, Mode=TwoWay}"
+                              Padding="10">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="services:EventItem">
+                                <StackPanel Margin="0,3">
+                                    <TextBlock Text="{x:Bind Type}" FontWeight="Bold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" FontSize="12"/>
+                                    <TextBlock Text="{x:Bind Timestamp}" Foreground="Gray" FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </Grid>
-                
-                <Button Content="🎙️ Transcribe Selected" 
-                        Command="{x:Bind ViewModel.TranscribeSelectedCommand}"
-                        HorizontalAlignment="Stretch"
-                        ToolTipService.ToolTip="Transcribe checked recordings (or current if none checked)"/>
-                
-                <ProgressBar Value="{x:Bind ViewModel.TranscriptionProgress, Mode=OneWay}"
-                             Maximum="100" Minimum="0"
-                             Visibility="{x:Bind ViewModel.IsTranscribing, Mode=OneWay}"
-                             HorizontalAlignment="Stretch"/>
+            </PivotItem>
 
-                <TextBlock Text="{x:Bind ViewModel.TranscriptionStatus, Mode=OneWay}" 
-                           FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
+            <!-- Tab 2: Transcribe -->
+            <PivotItem Header="Transcribe">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                <!-- Transcript version selector -->
-                <ComboBox ItemsSource="{x:Bind ViewModel.Transcripts, Mode=OneWay}"
-                          SelectedItem="{x:Bind ViewModel.SelectedTranscript, Mode=TwoWay}"
-                          DisplayMemberPath="ModelName"
-                          HorizontalAlignment="Stretch" FontSize="12"
-                          PlaceholderText="No transcripts yet"/>
-            </StackPanel>
-            
-            <!-- Transcript Text -->
-            <ScrollViewer Grid.Row="3" Padding="10">
-                <TextBlock Text="{x:Bind ViewModel.TranscriptText, Mode=OneWay}" 
-                           TextWrapping="Wrap" FontSize="12" IsTextSelectionEnabled="True"/>
-            </ScrollViewer>
+                    <!-- Controls: model selector, transcribe button, progress, version picker -->
+                    <StackPanel Margin="10" Spacing="6">
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Model:" VerticalAlignment="Center" FontSize="12"/>
+                            <ComboBox Grid.Column="1" 
+                                      ItemsSource="{x:Bind ViewModel.WhisperModels, Mode=OneWay}"
+                                      SelectedItem="{x:Bind ViewModel.SelectedWhisperModel, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" FontSize="12"/>
+                            <Button Grid.Column="2" Content="⬇"
+                                    Command="{x:Bind ViewModel.DownloadModelCommand}"
+                                    ToolTipService.ToolTip="Download or re-download this model"
+                                    FontSize="12" Padding="8,4"/>
+                        </Grid>
+                        
+                        <Button Content="🎙️ Transcribe Selected" 
+                                Command="{x:Bind ViewModel.TranscribeSelectedCommand}"
+                                HorizontalAlignment="Stretch"
+                                ToolTipService.ToolTip="Transcribe checked recordings (or current if none checked)"/>
+                        
+                        <ProgressBar Value="{x:Bind ViewModel.TranscriptionProgress, Mode=OneWay}"
+                                     Maximum="100" Minimum="0"
+                                     Visibility="{x:Bind ViewModel.IsTranscribing, Mode=OneWay}"
+                                     HorizontalAlignment="Stretch"/>
 
-            <!-- Debug Log (toggle via Settings) -->
-            <ScrollViewer Grid.Row="4" Padding="6" MaxHeight="150"
-                          Visibility="{x:Bind ViewModel.ShowDebugLog, Mode=OneWay}"
-                          Background="#1E1E1E" CornerRadius="4" Margin="6">
-                <TextBlock Text="{x:Bind ViewModel.TranscriptionDebugLog, Mode=OneWay}"
-                           FontFamily="Consolas" FontSize="10" Foreground="#CCCCCC"
-                           TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-            </ScrollViewer>
-        </Grid>
+                        <TextBlock Text="{x:Bind ViewModel.TranscriptionStatus, Mode=OneWay}" 
+                                   FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
+
+                        <!-- Transcript version selector -->
+                        <ComboBox ItemsSource="{x:Bind ViewModel.Transcripts, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedTranscript, Mode=TwoWay}"
+                                  DisplayMemberPath="ModelName"
+                                  HorizontalAlignment="Stretch" FontSize="12"
+                                  PlaceholderText="No transcripts yet"/>
+                    </StackPanel>
+
+                    <!-- Clickable Transcript Segments -->
+                    <ListView Grid.Row="1" 
+                              ItemsSource="{x:Bind ViewModel.TranscriptSegments, Mode=OneWay}"
+                              SelectedItem="{x:Bind ViewModel.SelectedSegment, Mode=TwoWay}"
+                              SelectionMode="Single" Padding="10">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="services:TranscriptSegment">
+                                <Grid Margin="0,2" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind TimeLabel}" 
+                                               FontFamily="Consolas" FontSize="11"
+                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Top"/>
+                                    <TextBlock Grid.Column="1" Text="{x:Bind Text}" 
+                                               TextWrapping="Wrap" FontSize="12"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Debug Log (toggle via Settings) -->
+                    <ScrollViewer Grid.Row="2" Padding="6" MaxHeight="150"
+                                  Visibility="{x:Bind ViewModel.ShowDebugLog, Mode=OneWay}"
+                                  Background="#1E1E1E" CornerRadius="4" Margin="6">
+                        <TextBlock Text="{x:Bind ViewModel.TranscriptionDebugLog, Mode=OneWay}"
+                                   FontFamily="Consolas" FontSize="10" Foreground="#CCCCCC"
+                                   TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                    </ScrollViewer>
+                </Grid>
+            </PivotItem>
+        </Pivot>
     </Grid>
 </Page>
