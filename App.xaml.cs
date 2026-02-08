@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Windows.Graphics;
 
 namespace TimeLapseCam
 {
@@ -14,6 +15,29 @@ namespace TimeLapseCam
             m_window = new MainWindow();
             m_window.Activate();
 
+            // Restore saved window size or apply default 50% height increase
+            var appWindow = m_window.AppWindow;
+            int savedW = Services.SettingsHelper.Get<int>("WindowWidth", 0);
+            int savedH = Services.SettingsHelper.Get<int>("WindowHeight", 0);
+
+            if (savedW > 100 && savedH > 100)
+            {
+                appWindow.Resize(new SizeInt32(savedW, savedH));
+            }
+            else
+            {
+                var size = appWindow.Size;
+                appWindow.Resize(new SizeInt32(size.Width, (int)(size.Height * 1.5)));
+            }
+
+            // Save window size on close
+            m_window.Closed += (s, e) =>
+            {
+                var finalSize = appWindow.Size;
+                Services.SettingsHelper.Set("WindowWidth", finalSize.Width);
+                Services.SettingsHelper.Set("WindowHeight", finalSize.Height);
+            };
+
             // Execute post-launch logic after window is visible
             m_window.DispatcherQueue.TryEnqueue(async () =>
             {
@@ -24,8 +48,7 @@ namespace TimeLapseCam
                 await CheckEulaAsync();
                 
                 // Initialize Analytics after EULA
-                var analytics = new Services.FirebaseAnalyticsService();
-                _ = analytics.LogEventAsync("app_launch");
+                _ = Services.FirebaseAnalyticsService.Instance.LogEventAsync("app_launch");
             });
         }
 
@@ -57,6 +80,8 @@ namespace TimeLapseCam
                 }
             }
         }
+
+        public static Window? MainWindow => ((App)Current).m_window;
 
         private Window? m_window;
     }

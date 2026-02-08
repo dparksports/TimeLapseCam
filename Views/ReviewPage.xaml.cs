@@ -28,6 +28,12 @@ namespace TimeLapseCam.Views
              {
                  ViewModel.SetMediaPlayer(Player.MediaPlayer);
              }
+
+             // Pass XamlRoot for file picker
+             if (this.XamlRoot != null)
+             {
+                 ViewModel.SetXamlRoot(this.XamlRoot);
+             }
         }
     }
 }

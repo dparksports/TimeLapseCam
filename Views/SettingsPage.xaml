@@ -10,6 +10,91 @@
     <StackPanel Spacing="20" Padding="24">
         <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
 
+        <!-- Camera & Recording -->
+        <StackPanel Spacing="10">
+            <TextBlock Text="Camera &amp; Recording" Style="{StaticResource SubtitleTextBlockStyle}" />
+            
+            <ToggleSwitch x:Name="PreviewToggle" 
+                          Header="Video Preview" 
+                          OnContent="On" OffContent="Off"
+                          Toggled="PreviewToggle_Toggled"
+                          ToolTipService.ToolTip="Show or hide the camera preview to save system resources." />
+            <TextBlock Text="Disabling preview can reduce CPU usage while still recording." 
+                       Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gray"/>
+            
+            <TextBlock Text="Delay Start (minutes)" Margin="0,8,0,0"/>
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="DelaySlider" 
+                        Minimum="0" Maximum="60" StepFrequency="1"
+                        TickFrequency="5" TickPlacement="BottomRight"
+                        ValueChanged="DelaySlider_Changed"/>
+                <TextBlock Grid.Column="1" x:Name="DelayValueText" 
+                           VerticalAlignment="Center" FontWeight="SemiBold" MinWidth="50"/>
+            </Grid>
+            <TextBlock Text="Set to 0 for immediate start. When armed, the button turns orange during countdown." 
+                       Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gray"/>
+        </StackPanel>
+
+        <!-- Transcription -->
+        <StackPanel Spacing="10">
+            <TextBlock Text="Transcription" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <TextBlock Text="Default Whisper Model" Style="{StaticResource BodyTextBlockStyle}" />
+            <ComboBox x:Name="WhisperModelCombo" HorizontalAlignment="Stretch" SelectionChanged="WhisperModel_Changed">
+                <ComboBoxItem Content="tiny" Tag="tiny"/>
+                <ComboBoxItem Content="base" Tag="base"/>
+                <ComboBoxItem Content="small" Tag="small"/>
+                <ComboBoxItem Content="medium" Tag="medium"/>
+                <ComboBoxItem Content="large" Tag="large"/>
+            </ComboBox>
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gray"
+                       TextWrapping="Wrap"
+                       Text="tiny = fastest / least accurate (~75MB). base = balanced (~140MB). small = good quality (~460MB). medium = high quality (~1.5GB). large = best quality (~3GB)." />
+            
+            <ToggleSwitch x:Name="DebugLogToggle" 
+                          Header="Show Debug Log" 
+                          OnContent="On" OffContent="Off"
+                          Toggled="DebugLogToggle_Toggled"
+                          ToolTipService.ToolTip="Show detailed transcription log in the Review page" />
+        </StackPanel>
+
+        <!-- Dependencies -->
+        <StackPanel Spacing="10">
+            <TextBlock Text="Dependencies" Style="{StaticResource SubtitleTextBlockStyle}" />
+            
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="FfmpegInstallButton" Content="🔧 Install ffmpeg" 
+                        Click="FfmpegInstall_Click" Padding="12,6"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="FfmpegStatusText" Text="Checking..." FontSize="13"/>
+                    <TextBlock Text="Required for extracting audio from video files." 
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gray"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="VcRuntimeInstallButton" Content="🔧 Install VC++ Runtime" 
+                        Click="VcRuntimeInstall_Click" Padding="12,6"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="VcRuntimeStatusText" Text="Checking..." FontSize="13"/>
+                    <TextBlock Text="Required for GPU-accelerated transcription (Whisper CLBlast)." 
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="Gray"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- Privacy -->
         <StackPanel Spacing="10">
             <TextBlock Text="Privacy" Style="{StaticResource SubtitleTextBlockStyle}" />
             <ToggleSwitch x:Name="AnalyticsToggle" 
@@ -24,7 +109,7 @@
 
         <StackPanel Spacing="10">
             <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
-            <TextBlock Text="TimeLapseCam v1.0" Style="{StaticResource BodyTextBlockStyle}" />
+            <TextBlock Text="TimeLapseCam v1.1" Style="{StaticResource BodyTextBlockStyle}" />
             <TextBlock Text="© 2026 MagicPoint AI" Style="{StaticResource CaptionTextBlockStyle}" />
         </StackPanel>
     </StackPanel>

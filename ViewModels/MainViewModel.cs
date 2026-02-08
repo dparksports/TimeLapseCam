@@ -4,6 +4,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using TimeLapseCam.Services;
 using Windows.Graphics.Imaging;
@@ -32,10 +33,18 @@ namespace TimeLapseCam.ViewModels
         private bool _isRecording;
 
         [ObservableProperty]
+        private bool _isArmed;
+
+        [ObservableProperty]
+        private bool _isPreviewEnabled = SettingsHelper.Get<bool>("PreviewEnabled", true);
+
+        [ObservableProperty]
         private string _statusMessage = "Ready";
 
         [ObservableProperty]
         private string _recordButtonText = "Start Recording";
+
+        private CancellationTokenSource? _delayCts;
 
         [ObservableProperty]
         private ObservableCollection<EventItem> _recentEvents = new();
@@ -162,15 +171,59 @@ namespace TimeLapseCam.ViewModels
         }
 
         [RelayCommand]
-        private void ToggleRecording()
+        private async Task ToggleRecording()
         {
+            // If armed (in countdown), cancel it
+            if (IsArmed)
+            {
+                _delayCts?.Cancel();
+                IsArmed = false;
+                RecordButtonText = "Start Recording";
+                StatusMessage = "Countdown cancelled.";
+                return;
+            }
+
             if (IsRecording)
             {
                 StopRecording();
             }
             else
             {
-                StartRecording();
+                int delayMinutes = SettingsHelper.Get<int>("DelayStartMinutes", 10);
+                if (delayMinutes > 0)
+                {
+                    IsArmed = true;
+                    RecordButtonText = "Cancel";
+                    _delayCts = new CancellationTokenSource();
+                    var ct = _delayCts.Token;
+
+                    try
+                    {
+                        int totalSeconds = delayMinutes * 60;
+                        for (int remaining = totalSeconds; remaining > 0; remaining--)
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            int mins = remaining / 60;
+                            int secs = remaining % 60;
+                            StatusMessage = $"Recording starts in {mins}:{secs:D2}";
+                            RecordButtonText = $"Cancel ({mins}:{secs:D2})";
+                            await Task.Delay(1000, ct);
+                        }
+
+                        IsArmed = false;
+                        StartRecording();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        IsArmed = false;
+                        RecordButtonText = "Start Recording";
+                        StatusMessage = "Ready";
+                    }
+                }
+                else
+                {
+                    StartRecording();
+                }
             }
         }
 
