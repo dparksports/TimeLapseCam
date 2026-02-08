@@ -17,10 +17,13 @@ namespace TimeLapseCam.Services
         private readonly HttpClient _httpClient = new HttpClient();
         private string? _measurementId;
         private string? _apiSecret;
+        private string? _firebaseAppId;
         private string _clientId;
 
         // Session management
         private long _sessionId;
+        private int _sessionNumber;
+        private bool _sessionStartSent;
         private const int SESSION_TIMEOUT_MINUTES = 30;
 
         private FirebaseAnalyticsService()
@@ -28,6 +31,7 @@ namespace TimeLapseCam.Services
             _clientId = GetOrCreateClientId();
             LoadConfiguration();
             _sessionId = GetOrCreateSessionId();
+            _sessionNumber = GetOrIncrementSessionNumber(isNewSession: false);
         }
 
         private void LoadConfiguration()
@@ -42,6 +46,9 @@ namespace TimeLapseCam.Services
                     var root = doc.RootElement;
                     _measurementId = root.GetProperty("measurementId").GetString();
                     _apiSecret = root.GetProperty("apiSecret").GetString();
+
+                    if (root.TryGetProperty("appId", out var appIdEl))
+                        _firebaseAppId = appIdEl.GetString();
                 }
             }
             catch (Exception)
@@ -50,48 +57,79 @@ namespace TimeLapseCam.Services
             }
         }
 
+        /// <summary>
+        /// Logs an event to GA4 via the Measurement Protocol.
+        /// Automatically injects session_id, engagement_time_msec, and ga_session_number.
+        /// Sends a session_start event before the first event in each new session.
+        /// </summary>
         public async Task LogEventAsync(string eventName, object? parms = null)
         {
             // Check opt-out status
             var enabled = SettingsHelper.Get<bool>("AnalyticsEnabled", true);
             if (!enabled) return;
 
-            if (string.IsNullOrEmpty(_measurementId)) return;
+            if (string.IsNullOrEmpty(_measurementId) || string.IsNullOrEmpty(_apiSecret)) return;
 
             try
             {
                 // Refresh session (regenerate if timed out)
                 RefreshSession();
 
+                // Send session_start if this is the first event of a new session
+                if (!_sessionStartSent)
+                {
+                    _sessionStartSent = true;
+
+                    // Only send session_start if the current event isn't already session_start
+                    if (eventName != "session_start")
+                    {
+                        await SendEventAsync("session_start", BuildParams(null));
+                    }
+                }
+
                 // Build merged params dictionary with session fields
                 var mergedParams = BuildParams(parms);
-
-                var url = $"https://www.google-analytics.com/mp/collect?measurement_id={_measurementId}&api_secret={_apiSecret}";
-                var payload = new
-                {
-                    client_id = _clientId,
-                    events = new[] { new { name = eventName, @params = mergedParams } }
-                };
-
-                var json = JsonSerializer.Serialize(payload);
-                System.Diagnostics.Debug.WriteLine($"[Analytics] Sending to {url}");
-                System.Diagnostics.Debug.WriteLine($"[Analytics] Payload: {json}");
-
-                var response = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, "application/json"));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    System.Diagnostics.Debug.WriteLine($"[Analytics] Failed: {response.StatusCode} - {content}");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"[Analytics] Success: {response.StatusCode}");
-                }
+                await SendEventAsync(eventName, mergedParams);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Analytics] Error: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Sends the actual HTTP request to GA4 Measurement Protocol endpoint.
+        /// </summary>
+        private async Task SendEventAsync(string eventName, Dictionary<string, object> eventParams)
+        {
+            var url = $"https://www.google-analytics.com/mp/collect?measurement_id={_measurementId}&api_secret={_apiSecret}";
+
+            // Build the payload — include non_personalized_ads for privacy
+            var payloadDict = new Dictionary<string, object>
+            {
+                ["client_id"] = _clientId,
+                ["non_personalized_ads"] = true,
+                ["events"] = new[] { new Dictionary<string, object>
+                {
+                    ["name"] = eventName,
+                    ["params"] = eventParams
+                }}
+            };
+
+            var json = JsonSerializer.Serialize(payloadDict);
+            System.Diagnostics.Debug.WriteLine($"[Analytics] Sending: {eventName}");
+            System.Diagnostics.Debug.WriteLine($"[Analytics] Payload: {json}");
+
+            var response = await _httpClient.PostAsync(url, new StringContent(json, Encoding.UTF8, "application/json"));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"[Analytics] Failed: {response.StatusCode} - {content}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[Analytics] Success: {response.StatusCode} [{eventName}]");
             }
         }
 
@@ -116,9 +154,10 @@ namespace TimeLapseCam.Services
                 }
             }
 
-            // Inject mandatory GA4 session fields
+            // Inject mandatory GA4 session fields (numeric values, not strings)
             dict["session_id"] = _sessionId.ToString();
-            dict["engagement_time_msec"] = "100";
+            dict["engagement_time_msec"] = 100;
+            dict["ga_session_number"] = _sessionNumber;
 
             return dict;
         }
@@ -139,7 +178,9 @@ namespace TimeLapseCam.Services
                 // Session expired – start a new one
                 _sessionId = now;
                 SettingsHelper.Set("GA_SessionId", _sessionId);
-                System.Diagnostics.Debug.WriteLine($"[Analytics] Session expired, new session_id: {_sessionId}");
+                _sessionNumber = GetOrIncrementSessionNumber(isNewSession: true);
+                _sessionStartSent = false; // Ensure session_start fires for new session
+                System.Diagnostics.Debug.WriteLine($"[Analytics] Session expired, new session_id: {_sessionId}, session_number: {_sessionNumber}");
             }
 
             // Update last activity
@@ -161,6 +202,7 @@ namespace TimeLapseCam.Services
                 var existingId = SettingsHelper.Get<long>("GA_SessionId", 0);
                 if (existingId > 0)
                 {
+                    _sessionStartSent = true; // Already sent in previous run
                     System.Diagnostics.Debug.WriteLine($"[Analytics] Resuming session_id: {existingId}");
                     return existingId;
                 }
@@ -170,8 +212,24 @@ namespace TimeLapseCam.Services
             var newId = now;
             SettingsHelper.Set("GA_SessionId", newId);
             SettingsHelper.Set("GA_LastActivity", now);
+            _sessionStartSent = false; // Will send session_start on first event
             System.Diagnostics.Debug.WriteLine($"[Analytics] New session_id: {newId}");
             return newId;
+        }
+
+        /// <summary>
+        /// Tracks the total number of sessions for this user.
+        /// Increments on new session, returns current count otherwise.
+        /// </summary>
+        private int GetOrIncrementSessionNumber(bool isNewSession)
+        {
+            var current = SettingsHelper.Get<int>("GA_SessionNumber", 0);
+            if (isNewSession || current == 0)
+            {
+                current++;
+                SettingsHelper.Set("GA_SessionNumber", current);
+            }
+            return current;
         }
 
         // ── Client ID persistence ───────────────────────────────────────
